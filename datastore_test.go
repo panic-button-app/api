@@ -14,7 +14,7 @@ var fsclient *RemoteFirestoreClient
 
 func TestMain(m *testing.M) {
 	ctx := context.Background()
-	client, err := firestore.NewClient(ctx, "panic-button-112233")
+	client, err := firestore.NewClient(ctx, os.Getenv("GOOGLE_CLOUD_PROJECT_ID"))
 	if err != nil {
 		log.Fatal(err)
 	}
