@@ -2,52 +2,45 @@ package main
 
 import (
 	"context"
+	"fmt"
 
-	"cloud.google.com/go/datastore"
-	"google.golang.org/api/iterator"
+	"cloud.google.com/go/firestore"
 )
 
-// UserKind is what kind is associated with users in the datastore.
-const UserKind = "User"
+// UserCollection is what collection is associated with users in firestore.
+const UserCollection = "User"
 
-type DatastoreClient interface {
-	GetUserBySub(ctx context.Context, sub string) (*User, error)
+type FirestoreClient interface {
+	GetUser(ctx context.Context, user *User) (*User, error)
 	PutUser(ctx context.Context, user *User) error
 }
 
-type RemoteDatastoreClient struct {
-	dsClient *datastore.Client
+// RemoteFirestoreClient
+type RemoteFirestoreClient struct {
+	fsClient       *firestore.Client
+	userCollection *firestore.CollectionRef
 }
 
-func NewRemoteDatastoreClient(client *datastore.Client) DatastoreClient {
-	return &RemoteDatastoreClient{client}
+func NewRemoteFirestoreClient(client *firestore.Client) FirestoreClient {
+	c := &RemoteFirestoreClient{fsClient: client}
+	c.userCollection = client.Collection(UserCollection)
+	return c
 }
 
-func (rds *RemoteDatastoreClient) GetUserBySub(ctx context.Context, sub string) (*User, error) {
-	query := datastore.NewQuery(UserKind).Filter("Sub =", sub).Limit(1)
-	t := rds.dsClient.Run(ctx, query)
-	var user *User
-	for {
-		u := new(User)
-		_, err := t.Next(u)
-		if err == iterator.Done {
-			break
-		}
-		if err != nil {
-			return nil, err
-		}
-		user = u
+// GetUser returns the user with the given sub (user.Sub must be populated).
+func (rds *RemoteFirestoreClient) GetUser(ctx context.Context, user *User) (*User, error) {
+	doc, err := rds.userCollection.Doc(user.GenerateKey()).Get(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error while getting user by sub: %v", err)
 	}
-
+	if err := doc.DataTo(user); err != nil {
+		return nil, fmt.Errorf("error while reading user data: %v", err)
+	}
 	return user, nil
 }
 
-func (rds *RemoteDatastoreClient) PutUser(ctx context.Context, user *User) error {
-	// If the user does not have a key, get one from the server.
-	if user.Key == nil {
-		user.Key = datastore.IncompleteKey(UserKind, nil)
-	}
-
-	_, err := rds.dsClient.Put(ctx, user.Key, user)
+// PutUser performs an upsert on the given user.
+func (rds *RemoteFirestoreClient) PutUser(ctx context.Context, user *User) error {
+	_, err := rds.userCollection.Doc(user.GenerateKey()).Set(ctx, user)
 	return err
 }
