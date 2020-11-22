@@ -1,6 +1,6 @@
 package main
 
-// Copyright 2019 Google LLC
+// Copyright 2020 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,17 +15,29 @@ package main
 // limitations under the License.
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"os"
 
 	"log"
 
+	"cloud.google.com/go/firestore"
 	"github.com/gorilla/handlers"
+)
+
+var (
+	firestoreClient FirestoreClient
 )
 
 func main() {
 	// Setup clients.
+	ctx := context.Background()
+	client, err := firestore.NewClient(ctx, firestore.DetectProjectID)
+	if err != nil {
+		log.Fatal(err)
+	}
+	firestoreClient = NewRemoteFirestoreClient(client)
 
 	port := "8000"
 	if os.Getenv("PORT") != "" {
