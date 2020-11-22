@@ -93,6 +93,13 @@ func signIn(w http.ResponseWriter, r *http.Request) {
 	auth0Token := ""
 	_ = auth0Token
 
+	userSub, err := ExtractAuth0JWT(r)
+	if err != nil {
+		handleError(err, w)
+		return
+	}
+	log.Printf("userSub: %v\n", userSub)
+
 }
 
 // Retrieves the user.

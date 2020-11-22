@@ -20,6 +20,7 @@ import (
 	"errors"
 	"net/http"
 	"os"
+	"strings"
 
 	pberrors "github.com/panic-button-app/api/errors"
 
@@ -78,8 +79,19 @@ func SaveUserSession(w http.ResponseWriter, r *http.Request, user *User) error {
 	return session.Save(r, w)
 }
 
-func ExtractAuth0JWT(r http.Request) (string, error) {
-	tokenString := ""
+func ExtractAuth0JWT(r *http.Request) (string, error) {
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		return "", errors.New("missing authorization header")
+	}
+
+	// TODO: Make this a bit more robust, parsing-wise
+	authHeaderParts := strings.Fields(authHeader)
+	if len(authHeaderParts) != 2 || strings.ToLower(authHeaderParts[0]) != "bearer" {
+		return "", errors.New("authorization header format must be Bearer {token}")
+	}
+
+	tokenString := authHeaderParts[1]
 
 	token, err := jwt.ParseWithClaims(tokenString, &jwt.StandardClaims{}, func(token *jwt.Token) (interface{}, error) {
 		return getPemCert(r.Context(), token)
