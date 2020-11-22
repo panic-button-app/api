@@ -2,8 +2,8 @@ package main
 
 import (
 	"context"
-	"log"
 	"os"
+	"sync"
 	"testing"
 
 	"cloud.google.com/go/firestore"
@@ -11,26 +11,33 @@ import (
 )
 
 var fsclient *RemoteFirestoreClient
+var setupOnce = &sync.Once{}
 
-func TestMain(m *testing.M) {
-	ctx := context.Background()
-	client, err := firestore.NewClient(ctx, os.Getenv("GOOGLE_CLOUD_PROJECT_ID"))
-	if err != nil {
-		log.Fatal(err)
-	}
+func ensureSetup(t *testing.T) {
+	setupOnce.Do(func() {
+		ctx := context.Background()
+		client, err := firestore.NewClient(ctx, os.Getenv("GOOGLE_CLOUD_PROJECT_ID"))
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	fsclient = NewRemoteFirestoreClient(client).(*RemoteFirestoreClient)
-	fsclient.userCollection = client.Collection("Users_Test")
-
-	os.Exit(m.Run())
+		fsclient = NewRemoteFirestoreClient(client).(*RemoteFirestoreClient)
+		fsclient.userCollection = client.Collection("Users_Test")
+	})
 }
 
-func TestPutGetUser(t *testing.T) {
+func TestPutGetUser_Integration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test in short mode")
+	}
+
+	ensureSetup(t)
+
 	user := &User{
 		Sub:  "hello@world.com",
 		Name: "Michael Scott",
 		Contacts: []Contact{
-			Contact{
+			{
 				Name:        "Pam",
 				PhoneNumber: "123456",
 			},
@@ -50,5 +57,36 @@ func TestPutGetUser(t *testing.T) {
 	}
 	if diff := cmp.Diff(user, got); diff != "" {
 		t.Errorf("GetUser(ctx, user) mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestSubKeyGeneration(t *testing.T) {
+	tests := []struct {
+		name string
+		Sub  string
+		want string
+	}{
+		{
+			name: "empty string",
+			Sub:  "",
+			want: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+		},
+		{
+			name: "sub is bob",
+			Sub:  "bob",
+			want: "81b637d8fcd2c6da6359e6963113a1170de795e4b725b84d1e0b4cfd9ec58ce9",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			user := &User{Sub: test.Sub}
+
+			// SHA256 of an empty string
+			got := user.GenerateKey()
+			if got != test.want {
+				t.Errorf("user.GenerateKey(): got %v, want %v", got, test.want)
+			}
+		})
 	}
 }

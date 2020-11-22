@@ -18,12 +18,13 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"os"
 
 	"log"
 
 	firebase "firebase.google.com/go"
 	"firebase.google.com/go/auth"
-	"google.golang.org/appengine"
+	"github.com/gorilla/handlers"
 )
 
 var (
@@ -41,11 +42,21 @@ func main() {
 		log.Fatal(err)
 	}
 
-	http.HandleFunc("/signIn", signIn)
-	http.HandleFunc("/contacts", contacts)
-	http.HandleFunc("/press-button", pressButton)
-	http.HandleFunc("/ping", ping)
-	appengine.Main()
+	port := "8000"
+	if os.Getenv("PORT") != "" {
+		port = os.Getenv("PORT")
+	}
+
+	r := http.NewServeMux()
+
+	r.HandleFunc("/signIn", signIn)
+	r.HandleFunc("/contacts", contacts)
+	r.HandleFunc("/press-button", pressButton)
+	r.HandleFunc("/ping", ping)
+
+	// Wrap our server with our gzip handler to gzip compress all responses.
+	http.ListenAndServe(":"+port,
+		handlers.RecoveryHandler()(handlers.CompressHandler(r)))
 }
 
 // ErrorMessage defines how the API returns error messages back
@@ -86,4 +97,5 @@ func pressButton(w http.ResponseWriter, r *http.Request) {
 }
 
 func ping(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNoContent)
 }
