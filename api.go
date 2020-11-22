@@ -15,32 +15,17 @@ package main
 // limitations under the License.
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"os"
 
 	"log"
 
-	firebase "firebase.google.com/go"
-	"firebase.google.com/go/auth"
 	"github.com/gorilla/handlers"
-)
-
-var (
-	firebaseClient *auth.Client
 )
 
 func main() {
 	// Setup clients.
-	app, err := firebase.NewApp(context.Background(), nil, nil)
-	if err != nil {
-		log.Fatal(err)
-	}
-	firebaseClient, err = app.Auth(context.Background())
-	if err != nil {
-		log.Fatal(err)
-	}
 
 	port := "8000"
 	if os.Getenv("PORT") != "" {
