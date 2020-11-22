@@ -20,6 +20,8 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/panic-button-app/api/errors"
+
 	"log"
 
 	"cloud.google.com/go/firestore"
@@ -47,8 +49,8 @@ func main() {
 	r := http.NewServeMux()
 
 	r.HandleFunc("/signIn", signIn)
-	r.HandleFunc("/contacts", contacts)
-	r.HandleFunc("/press-button", pressButton)
+	r.HandleFunc("/getUser", SessionMiddleware(getUser, firestoreClient))
+	r.HandleFunc("/pressButton", pressButton)
 	r.HandleFunc("/ping", ping)
 
 	// Wrap our server with our gzip handler to gzip compress all responses.
@@ -63,29 +65,41 @@ type ErrorMessage struct {
 	Message string
 }
 
-func sendError(status int, msg string, w http.ResponseWriter) {
+func handleError(err error, w http.ResponseWriter) {
+	// Check if the error has been annotated with the errors package.
+	annotated, ok := err.(errors.Error)
+	if !ok {
+		// Default to internal.
+		annotated = errors.Annotate(err, errors.CodeInternal).(errors.Error)
+	}
+
+	log.Println(annotated.Error())
+
+	status := errors.HTTPMapping[annotated.Code]
+	if status == 0 {
+		status = http.StatusInternalServerError
+	}
+
 	w.WriteHeader(status)
-	err := json.NewEncoder(w).Encode(ErrorMessage{
-		Code:    status,
-		Message: msg,
-	})
-	if err != nil {
+	if err := json.NewEncoder(w).Encode(ErrorMessage{
+		Code: status,
+	}); err != nil {
 		log.Println(err)
 	}
 }
 
 func signIn(w http.ResponseWriter, r *http.Request) {
-	// Verify the user's identity.
+	// Get the auth0 token from the request.
+	auth0Token := ""
+	_ = auth0Token
+
 }
 
-// Contact management.
-func contacts(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodGet:
-	case http.MethodPost:
-	case http.MethodPut:
-	case http.MethodDelete:
-
+// Retrieves the user.
+func getUser(w http.ResponseWriter, r *http.Request, user *User) {
+	if err := json.NewEncoder(w).Encode(user); err != nil {
+		handleError(err, w)
+		return
 	}
 }
 
